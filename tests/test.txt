@@ -1,0 +1,7 @@
+Hello, this is my test file.
+Original file content.
+
+
+[modified by simulated application]
+
+[modified by simulated application]

@@ -1,0 +1,27 @@
+# Compiled executables and build outputs
+*.exe
+/build/
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.pdb
+*.ilk
+
+# Temporary and generated files
+*.tmp
+*.log
+*.diff_*
+*_S_[0-9]*
+
+# IDE and editor state
+.vs/
+.idea/
+.vscode/
+*.swp
+*~
+
+# Operating-system metadata
+Thumbs.db
+.DS_Store

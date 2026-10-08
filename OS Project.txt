@@ -1,0 +1,194 @@
+                    SECOND APPLICATION
+                     WANTS TO OPEN FILE
+                            │
+                            ▼
+              ┌───────────────────────────┐
+              │  HOW DO YOU WANT TO OPEN  │
+              │        hello.docx?        │
+              │                           │
+              │    [READ] [READ + WRITE]  │
+              └─────────────┬─────────────┘
+                            │
+              ┌─────────────┴─────────────┐
+              ▼                           ▼
+            READ                     READ + WRITE
+              │                           │
+              ▼                           ▼
+       Is original currently       Is original currently
+          being modified?             being modified?
+          /           \                /          \
+        NO             YES            NO           YES
+        │               │             │             │
+        ▼               ▼             ▼             ▼
+    Open/read       ┌───────────┐  Open with     ┌──────────────┐
+    original        │ Shadow    │  READ+WRITE     │ Shadow Copy? │
+                    │ Copy?     │                 └──────┬───────┘
+                    └─────┬─────┘                    /       \
+                      YES │ NO                      YES        NO
+                          │  │                       │          │
+                          ▼  ▼                       ▼          ▼
+                    Open Shadow  ┌──────────────┐ Open Shadow  How proceed?
+                       Copy      │ What do you  │  to R+W        /      \
+                                 │ want to do?  │               /        \
+                                 │              │            WAIT       CHANGE
+                                 │ [Close]      │                        PERMISSIONS
+                                 │ [Move to     │                           │
+                                 │  READ+WRITE] │                           ▼
+                                 └──────┬───────┘                    Select WRITE owner
+                                        │                                  │
+                                        │                           ┌──────┴──────┐
+                                        │                           ▼             ▼
+                                        │                         Word       Other App
+                                        │                           │             │
+                                        │                           ▼             ▼
+                                        │                         Word →       Other →
+                                        │                         R+W          R+W
+                                        │                         Other →      Word →
+                                        │                         READ         READ
+                                        │
+                                        │
+                                        └──────────────────────────────► How proceed?
+                                                                          /        \
+                                                                       WAIT       CHANGE
+                                                                                  PERMISSIONS
+
+                                         WAIT
+                                           │
+                                           ▼
+                                  Wait until current
+                                  WRITE access ends
+                                           │
+                                           ▼
+                                  New app → READ+WRITE
+
+
+
+Then the shadow-copy logic applies
+If a shadow copy is opened
+
+                 SHADOW COPY
+                     │
+              ┌──────┴──────┐
+              ▼             ▼
+          Only READ      Modified?
+              │             │
+              │          YES│
+              │             ▼
+              │       Independent file
+              │
+              ▼
+       Original changes?
+              │
+              ▼
+        Notify reader
+              │
+              ▼
+      ┌───────┴────────┐
+      ▼                ▼
+   [UPDATE]          [KEEP]
+      │                │
+      ▼                ▼
+New shadow copy    Keep current
+
+
+
+If the shadow copy is modified, it is no longer a temporary shadow copy.
+
+Temporary Shadow Copy
+        │
+        │ user modifies it
+        ▼
+Independent File
+
+
+Implementation Details
+Active Modification Detection
+Track whether the current writer is actively writing changes to the original file.
+File is considered “being modified” only during an actual write operation.
+“Currently being modified” means another application currently holds READ + WRITE access.
+Permission Transfer
+When WRITE ownership is transferred, the current writer must save its changes first.
+After saving, its access is changed to READ and the new application receives READ + WRITE.
+Before transferring WRITE, save the current writer's work → change current writer to READ → user selects the new WRITE owner.
+WRITE Ownership Management
+Maintain a single WRITE owner for the original file.
+Release WRITE ownership when the application finishes/closes or is transferred to READ.
+Only one application can have READ + WRITE access to the original file at a time.
+Other applications are restricted to READ/shadow-copy access.
+Original File Update Notification
+Detect a new saved version of the original file.
+Notify all users holding temporary shadow copies.
+Each user can choose [UPDATE] or [KEEP].
+KEEP: Continue using the current temporary shadow-copy version instead of updating it to the latest original version.
+Multiple Reader Management
+Each normal READ request receives its own temporary shadow copy.
+Multiple applications can therefore read independently without interfering with the writer or each other.
+Multiple applications can read simultaneously using separate shadow copies.
+Writer Release / New Writer Selection
+When the current writer closes/releases WRITE access, display a selection box.
+The user chooses which waiting application should receive WRITE access.
+A requesting application can wait until WRITE access becomes available.
+There is no automatic queue; the user selects which waiting application should receive WRITE access.
+READ Isolation
+READ applications normally operate on shadow copies rather than the original.
+Direct reading of the original is allowed only when explicitly selected by the user.
+Conflicting access can be provided through a temporary shadow copy.
+Single-Writer Enforcement
+Only one application can have READ + WRITE access to the original at a time.
+Application Failure Handling
+Monitor the active application's process/status.
+If the writer terminates unexpectedly, release its WRITE ownership and allow another application to acquire it.
+If the writer crashes, WRITE ownership is released.
+Permission and File-State Separation
+Maintain access mode separately from file state:
+- Access: READ / READ+WRITE
+- State: Original / Temporary Shadow Copy / Independent File
+If a temporary shadow copy is modified, convert it into an Independent File with no automatic synchronization.
+Final Implementation Details
+Active Writing: No inactivity timer. An application keeps READ+WRITE ownership until it explicitly closes/releases the file.
+Shadow Copy: Create copies such as hello_S.docx; use unique suffixes when multiple shadow copies exist.
+Ownership: Maintain a central access table containing the original file, current WRITE owner, readers, waiting applications, and shadow copies.
+Interception: Implement as a controlled working prototype rather than a kernel-level file-system interceptor.
+WAIT: If WRITE is occupied, the requesting application enters a waiting state until WRITE becomes available.
+Permission Transfer: Save current writer → change it to READ → let the user select the new WRITE owner → selected application gets READ+WRITE.
+Dirty Bit: Not required; detect shadow-copy modification through the prototype's file/state tracking.
+Queue: No automatic queue; the user selects which waiting application should receive WRITE access.
+KEEP: Continue using the current temporary shadow-copy version instead of updating it to the latest original version.
+Implementation: Build a working prototype demonstrating the complete access-control, shadow-copy, synchronization, and WRITE-ownership workflow.
+The special access-control mechanism is mainly for the WRITE / READ+WRITE conflict and file consistency part.
+For the actual execution of applications, use normal OS scheduling techniques.
+Access Modes
+READ and READ + WRITE are explicitly selected by the user.
+Single Writer
+Only one application can have READ + WRITE access to the original file.
+Multiple Readers
+Multiple applications can read simultaneously using separate shadow copies.
+Active Modification
+“Currently being modified” means another application currently holds READ + WRITE access.
+Shadow Copy
+Conflicting access can be provided through a temporary shadow copy.
+Shadow Modification
+If a shadow copy is modified, it becomes an independent file.
+Original Update
+Temporary shadow-copy users receive UPDATE / KEEP options when the original changes.
+Permission Transfer
+Save current writer → change it to READ → user selects the new WRITE owner.
+WAIT
+A requesting application can wait until WRITE access becomes available.
+Writer Release
+When the writer closes/releases WRITE, the user selects the next WRITE owner.
+Application Failure
+If the writer crashes, WRITE ownership is released.
+Ownership Table
+Maintain the original file, WRITE owner, readers, waiting applications, and shadow copies.
+No Automatic Queue
+The user manually selects which waiting application gets WRITE access.
+No Dirty Bit
+File/state tracking is used to identify shadow-copy modification.
+CPU Scheduling
+Normal OS scheduling techniques are used for process execution.
+Implementation
+Controlled working prototype, not a kernel-level file-system interceptor.
+
+
+“Our system dynamically manages concurrent file-access conflicts by enforcing exclusive WRITE ownership while enabling safe READ concurrency through shadow copies, waiting, and user-controlled permission transfer.”
